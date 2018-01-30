@@ -2,6 +2,9 @@ from flask import Flask, render_template, request
 import numpy as np 
 import pandas as pd 
 from random import randint
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score
 
 
 app = Flask(__name__)
@@ -14,8 +17,6 @@ wineData = wineData[['province','variety','country','price','points','region_1',
 wineData = wineData.dropna(subset=['province','variety','country','price','points','region_1','winery'], how='any')
 wineData.drop_duplicates(keep='first')
 
-from sklearn.model_selection import train_test_split
-from sklearn.tree import DecisionTreeClassifier
 clf = DecisionTreeClassifier(random_state=10)
 
 x_unsplit = wineData[['variety', 'price', 'winery', 'region_1']]
@@ -29,7 +30,6 @@ clf.fit(X_train_mean, y_train)
 
 y_predictions = clf.predict(X_test_mean)
 
-from sklearn.metrics import accuracy_score
 dt_acc = accuracy_score(y_test,y_predictions)
 
 variety_category = sorted(wineData['variety'].unique().tolist())
