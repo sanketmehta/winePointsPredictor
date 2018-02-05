@@ -5,38 +5,34 @@ from random import randint
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score
+import pickle
+from time import gmtime, strftime
 
 
 app = Flask(__name__)
 app.debug = True
 
-init_data = pd.read_csv("winemag-data_first150k.csv")
+decision_tree_pkl_filename = 'wineRatingClassifier_1.pkl'
+wineData_pkl_filename = 'wineData_1.pkl'
+columnList_pkl_filename = 'columnList_1.pkl'
 
-wineData = init_data[init_data.duplicated('description', keep=False)]
-wineData = wineData[['province','variety','country','price','points','region_1','winery']]
-wineData = wineData.dropna(subset=['province','variety','country','price','points','region_1','winery'], how='any')
-wineData.drop_duplicates(keep='first')
+# Loading the objects with pickle
+decision_tree_model_pkl = open(decision_tree_pkl_filename, 'rb')
+decision_tree_model = pickle.load(decision_tree_model_pkl)
 
-clf = DecisionTreeClassifier(random_state=10)
+wineData_pkl = open(wineData_pkl_filename, 'rb')
+wineData = pickle.load(wineData_pkl)
 
-x_unsplit = wineData[['variety', 'price', 'winery', 'region_1']]
-y_unsplit = wineData['points']
-x_unsplit = pd.get_dummies(x_unsplit, columns=['variety', 'winery', 'region_1'])
-X_train, X_test, y_train, y_test = train_test_split(x_unsplit, y_unsplit, random_state=1, train_size=0.90)
+columnList_pkl = open(columnList_pkl_filename, 'rb')
+columnList = pickle.load(columnList_pkl)
 
-X_train_mean = X_train.fillna({"price": x_unsplit['price'].mean()})
-X_test_mean = X_test.fillna({"price":x_unsplit['price'].mean()})
-clf.fit(X_train_mean, y_train)
-
-y_predictions = clf.predict(X_test_mean)
-
-dt_acc = accuracy_score(y_test,y_predictions)
+clf = decision_tree_model
 
 variety_category = sorted(wineData['variety'].unique().tolist())
 winery_category = sorted(wineData['winery'].unique().tolist())
 region_1_category = sorted(wineData['region_1'].unique().tolist())
 
-columnList = X_test_mean.columns.tolist()
+
 
 def add_missing_dummy_columns( d, columns ):
     missing_cols = set( columns ) - set( d.columns )
@@ -50,10 +46,20 @@ def predict_points(varietyVal, priceVal, wineryVal, region1Val):
     new_sample1_prd = clf.predict(new_sample)
     return new_sample1_prd[0]
 
-wine150k = pd.read_csv("winemag-data_first150k.csv")
+wine150k_pkl_filename = 'wine150k_1.pkl'
+
+wine150k_pkl = open(wine150k_pkl_filename, 'rb')
+wine150k = pickle.load(wine150k_pkl)
+
 wine150k = wine150k.drop('Unnamed: 0',  axis=1)
-wine130k = pd.read_csv("winemag-data-130k-v2.csv")
+
+wine130k_pkl_filename = 'wine130k_1.pkl'
+
+wine130k_pkl = open(wine130k_pkl_filename, 'rb')
+wine130k = pickle.load(wine130k_pkl)
+
 wine130k = wine130k.drop('Unnamed: 0',  axis=1)
+
 df = pd.merge(wine130k, wine150k, how='outer', indicator=True)
 onlyIn130kList_allCol = df[df['_merge']=='left_only'][wine130k.columns]
 onlyIn130kList = onlyIn130kList_allCol[['variety', 'province', 'price', 'winery', 'region_1', 'points']]
@@ -127,6 +133,19 @@ def predictPoints():
     selWine = selectWine()
     selectedWine = selWine[0]
     predictedRating = selWine[1]
+    if int(selectedWine['points'].values[0]) >= int(predictedRating):
+        if (int(selectedWine['points'].values[0]) - int(predictedRating)) == 0:
+            predctdRange = str((predictedRating - 2)) + ' - ' + str((predictedRating + 2))
+        elif (int(selectedWine['points'].values[0]) - int(predictedRating)) == 1:
+            predctdRange = str((predictedRating - 1)) + ' - ' + str((predictedRating + 3))
+        else:
+            predctdRange = str((predictedRating)) + ' - ' + str((predictedRating + 4))
+    else:
+        if (int(predictedRating) - int(selectedWine['points'].values[0])) == 1:
+            predctdRange = str((int(selectedWine['points'].values[0]) - 1)) + ' - ' + str((int(selectedWine['points'].values[0]) + 3))
+        else:
+            predctdRange = str((int(selectedWine['points'].values[0]))) + ' - ' + str((int(selectedWine['points'].values[0]) + 4))
+
     if(request.form.get('varieties') is None and request.form.get('wineries') is None and request.form.get('regions') is None and request.form.get('price') is None):
         variety = variety_category[0]
         winery = winery_category[0]
@@ -137,14 +156,16 @@ def predictPoints():
         winery = request.form.get('wineries')
         region = request.form.get('regions')
         price = float(request.form.get('price'))
-    predctdVal = predict_points(variety, price, winery, region)
     df1 = pd.DataFrame({
     'variety': variety,
     'winery': winery,
     'region_1': region,
     'price': price
     }, index=[0])
-    return render_template('index.html', varieties=variety_category, wineries=winery_category, regions=region_1_category, results2=selectedWine.to_html(index=False),results3=predictedRating, result=df1.to_html(index=False), result2=predctdVal)
+
+    predctdVal = predict_points(variety, price, winery, region)
+    predctdRange2 = str((predctdVal - 2)) + ' - ' + str((predctdVal + 2))
+    return render_template('index.html', varieties=variety_category, wineries=winery_category, regions=region_1_category, results2=selectedWine.to_html(index=False),results3=predictedRating, result=df1.to_html(index=False,col_space=10), result2=predctdVal, result3=predctdRange, result4=predctdRange2)
 
 
 if __name__ == "__main__":
